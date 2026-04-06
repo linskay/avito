@@ -7,16 +7,26 @@ import ru.avito.hackathon.dto.SplitResult;
 import java.util.List;
 
 /**
- * Главный интерфейс решения для выделения самостоятельных услуг
+ * Контракт сервиса анализа и разделения объявлений.
  */
 public interface AdSplitter {
-    
+
     /**
-     * Анализирует текст объявления и определяет, нужно ли создавать отдельные черновики.
-     * 
-     * @param ad Входное объявление
-     * @param dictionary Словарь микрокатегорий
-     * @return Результат с флагом shouldSplit и списком черновиков drafts
+     * Анализирует текст объявления без сохранения результата в БД.
+     * Используется для проверки алгоритма и отладки.
+     *
+     * @param ad         исходное объявление
+     * @param dictionary справочник микрокатегорий
+     * @return результат анализа с флагом shouldSplit и списком черновиков
+     */
+    SplitResult analyzeAd(Ad ad, List<Microcategory> dictionary);
+
+    /**
+     * Анализирует текст объявления и сохраняет черновики в базу данных.
+     *
+     * @param ad         исходное объявление
+     * @param dictionary справочник микрокатегорий
+     * @return результат с флагом shouldSplit и списком сохранённых черновиков
      */
     SplitResult splitAd(Ad ad, List<Microcategory> dictionary);
 }

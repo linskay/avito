@@ -1,7 +1,30 @@
 ### ===========================================================
 ### Avito Ad Splitter — Тестовые запросы
 ### Swagger UI: http://localhost:8080/swagger-ui.html
+###
+### ЭНДПОИНТЫ:
+###   POST /api/v1/ads/analyze  — только анализ, БД не трогает (для отладки алгоритма)
+###   POST /api/v1/ads/split    — анализ + сохранение черновиков в PostgreSQL
 ### ===========================================================
+
+### [0-analyze] Быстрая проверка алгоритма БЕЗ сохранения в БД
+POST http://localhost:8080/api/v1/ads/analyze
+Content-Type: application/json
+
+{
+  "ad": {
+    "itemId": 1001,
+    "mcId": 201,
+    "mcTitle": "Ремонт квартир и домов под ключ",
+    "description": "Делаем ремонт. Также отдельно выполняем сантехнику."
+  },
+  "dictionary": [
+    { "mcId": 101, "mcTitle": "Сантехника", "keyPhrases": ["сантехнику", "разводка труб"] },
+    { "mcId": 102, "mcTitle": "Электрика", "keyPhrases": ["электрику", "установка розеток"] }
+  ]
+}
+
+###
 
 ### [1] SPLIT: маркер «отдельно» — ожидаем shouldSplit=true, 1 черновик (Сантехника)
 POST http://localhost:8080/api/v1/ads/split

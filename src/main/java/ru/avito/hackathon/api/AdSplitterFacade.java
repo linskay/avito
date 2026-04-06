@@ -43,6 +43,11 @@ public class AdSplitterFacade implements AdSplitter {
         this.draftMapper = draftMapper;
     }
 
+    @Override
+    public SplitResult analyzeAd(Ad ad, List<Microcategory> dictionary) {
+        return traversalService.determineSplits(ad, dictionary);
+    }
+
     /**
      * Анализирует объявление, сохраняет его в БД и создает черновики для найденных услуг.
      *

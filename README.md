@@ -145,7 +145,8 @@ docker-compose down
 | Сервис | URL |
 | :--- | :--- |
 | **Swagger UI** | http://localhost:8080/swagger-ui.html |
-| **API endpoint** | `POST` http://localhost:8080/api/v1/ads/split |
+| **Анализ (без БД)** | `POST` http://localhost:8080/api/v1/ads/analyze |
+| **Сплит (с сохранением)** | `POST` http://localhost:8080/api/v1/ads/split |
 | **OpenAPI JSON** | http://localhost:8080/api-docs |
 | **PostgreSQL** | `localhost:5432` / DB: `avito_db` / User: `avito` / Pass: `password` |
 

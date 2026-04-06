@@ -36,6 +36,20 @@ class GlobalExceptionHandlerTest {
     private AdSplitter adSplitter;
 
     @Test
+    @DisplayName("POST /analyze — анализ без сохранения в БД, возвращает 200")
+    void whenAnalyzeValidRequest_thenReturns200WithoutDbSave() throws Exception {
+        when(adSplitter.analyzeAd(any(), any()))
+                .thenReturn(new SplitResult(List.of(101), true, List.of()));
+
+        mockMvc.perform(post("/api/v1/ads/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(validBody()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.shouldSplit").value(true))
+                .andExpect(jsonPath("$.detectedMcIds[0]").value(101));
+    }
+
+    @Test
     @DisplayName("Пустое тело запроса (поле ad=null) → 400 VALIDATION_ERROR")
     void whenAdIsNull_thenReturns400() throws Exception {
         mockMvc.perform(post("/api/v1/ads/split")
