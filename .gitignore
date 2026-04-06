@@ -34,3 +34,8 @@ logs/
 tmp/
 *.tmp
 run-tests.bat
+
+# Environment variables (secrets)
+.env
+.env.*
+!.env.example
