@@ -3,7 +3,7 @@ package ru.avito.hackathon.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import ru.avito.hackathon.dto.Ad;
@@ -22,21 +22,27 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Оценочный тест для измерения качества эвристического алгоритма разделения объявлений
- * на реальном датасете из 3000 объявлений ({@code test data/rnc_dataset.jsonl}).
+ * Оценочный тест для измерения качества эвристического алгоритма разделения
+ * объявлений
+ * на реальном датасете из 3000 объявлений
+ * ({@code test data/rnc_dataset.jsonl}).
  * <p>
- * Словарь микрокатегорий загружается из {@code test data/rnc_mic_key_phrases.csv}.
+ * Словарь микрокатегорий загружается из
+ * {@code test data/rnc_mic_key_phrases.csv}.
  * <p>
  * Вычисляемые метрики:
  * <ul>
- *   <li><b>Precision</b> — доля корректных черновиков среди всех созданных</li>
- *   <li><b>Recall</b> — доля ожидаемых черновиков, которые алгоритм нашёл</li>
- *   <li><b>F1-score</b> — гармоническое среднее Precision и Recall</li>
- *   <li><b>Exact Match</b> — доля объявлений, где набор mcId точно совпал с эталоном</li>
- *   <li><b>shouldSplit Accuracy</b> — точность предсказания флага «нужно ли делить вообще»</li>
+ * <li><b>Precision</b> — доля корректных черновиков среди всех созданных</li>
+ * <li><b>Recall</b> — доля ожидаемых черновиков, которые алгоритм нашёл</li>
+ * <li><b>F1-score</b> — гармоническое среднее Precision и Recall</li>
+ * <li><b>Exact Match</b> — доля объявлений, где набор mcId точно совпал с
+ * эталоном</li>
+ * <li><b>shouldSplit Accuracy</b> — точность предсказания флага «нужно ли
+ * делить вообще»</li>
  * </ul>
  * <p>
  * Тест запускается <b>вручную</b>:
+ * 
  * <pre>
  *   ./mvnw test -Dtest=HeuristicEvaluationTest -DfailIfNoTests=false
  * </pre>
@@ -45,7 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HeuristicEvaluationTest {
 
     /** Путь к датасету относительно корня проекта */
-    private static final String DATASET_PATH = "test data/rnc_dataset.jsonl";
+    private static final String DATASET_PATH = "test data/rnc_dataset_markup.json";
 
     /** Путь к словарю ключевых фраз */
     private static final String PHRASES_PATH = "test data/rnc_mic_key_phrases.csv";
@@ -74,7 +80,8 @@ class HeuristicEvaluationTest {
         EvalStats stats = evaluate(records);
         printReport(stats, "Весь датасет (" + records.size() + " записей)");
         assertTrue(stats.f1() >= MIN_ACCEPTABLE_F1,
-                String.format("F1-score %.3f ниже минимального порога %.3f. Нужно улучшить алгоритм!", stats.f1(), MIN_ACCEPTABLE_F1));
+                String.format("F1-score %.3f ниже минимального порога %.3f. Нужно улучшить алгоритм!", stats.f1(),
+                        MIN_ACCEPTABLE_F1));
     }
 
     @Test
@@ -113,7 +120,8 @@ class HeuristicEvaluationTest {
     /**
      * Загружает записи из JSONL-файла датасета.
      *
-     * @param splitFilter фильтр по полю {@code split} ("train", "val", "test" или {@code null} — все)
+     * @param splitFilter фильтр по полю {@code split} ("train", "val", "test" или
+     *                    {@code null} — все)
      * @return список записей для оценки
      */
     private List<EvalRecord> loadDataset(String splitFilter) throws IOException {
@@ -121,40 +129,50 @@ class HeuristicEvaluationTest {
         List<EvalRecord> records = new ArrayList<>();
         ObjectMapper mapper = new ObjectMapper();
 
-        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.isBlank()) continue;
+        try {
+            JsonNode root = mapper.readTree(path.toFile());
+            if (!root.isArray()) return records;
+
+            for (JsonNode node : root) {
+                // В новом наборе split=null везде, поэтому фильтр по нему пропускаем
+                // String splitVal = node.path("split").asText(null);
+                // if (splitFilter != null && !splitFilter.equals(splitVal)) continue;
+
+                String itemIdStr = node.path("itemId").asText();
+                int itemId = 0;
                 try {
-                    JsonNode node = mapper.readTree(line);
-                    String splitVal = node.path("split").asText();
-                    if (splitFilter != null && !splitFilter.equals(splitVal)) continue;
+                    itemId = Integer.parseInt(itemIdStr);
+                } catch (NumberFormatException ignored) {}
 
-                    int itemId = node.path("itemId").asInt();
-                    int sourceMcId = node.path("sourceMcId").asInt();
-                    String sourceMcTitle = node.path("sourceMcTitle").asText();
-                    String description = node.path("description").asText();
-                    boolean shouldSplit = node.path("shouldSplit").asBoolean();
-                    String caseType = node.path("caseType").asText();
+                int sourceMcId = node.path("sourceMcId").asInt();
+                String sourceMcTitle = node.path("sourceMcTitle").asText();
+                String description = node.path("description").asText();
+                boolean shouldSplit = node.path("shouldSplit").asBoolean();
+                String caseType = node.path("caseType").asText();
 
-                    // Парсим targetSplitMcIds — строка вида "[111, 108, 110]"
-                    Set<Integer> targetSplitMcIds = new HashSet<>();
-                    String rawIds = node.path("targetSplitMcIds").asText("[]");
-                    rawIds = rawIds.replaceAll("[\\[\\]\\s]", "");
-                    if (!rawIds.isEmpty()) {
-                        for (String part : rawIds.split(",")) {
-                            try { targetSplitMcIds.add(Integer.parseInt(part.trim())); } catch (NumberFormatException ignored) {}
-                        }
-                    }
+                // Парсим targetSplitMcIds — строка вида "[111, 108, 110]" или "[]"
+                Set<Integer> targetSplitMcIds = parseMcIds(node.path("targetSplitMcIds").asText("[]"));
 
-                    records.add(new EvalRecord(itemId, sourceMcId, sourceMcTitle, description,
-                            shouldSplit, targetSplitMcIds, caseType, splitVal));
-                } catch (Exception e) {
-                    // Пропускаем повреждённые строки
-                }
+                records.add(new EvalRecord(itemId, sourceMcId, sourceMcTitle, description,
+                        shouldSplit, targetSplitMcIds, caseType, null));
             }
+        } catch (Exception e) {
+            System.err.println("❌ Ошибка при загрузке датасета: " + e.getMessage());
         }
         return records;
+    }
+
+    private Set<Integer> parseMcIds(String rawIds) {
+        Set<Integer> result = new HashSet<>();
+        if (rawIds == null || rawIds.equals("[]") || rawIds.isBlank()) return result;
+        String clean = rawIds.replaceAll("[\\[\\]\\s]", "");
+        if (clean.isEmpty()) return result;
+        for (String part : clean.split(",")) {
+            try {
+                result.add(Integer.parseInt(part.trim()));
+            } catch (NumberFormatException ignored) {}
+        }
+        return result;
     }
 
     /**
@@ -170,7 +188,8 @@ class HeuristicEvaluationTest {
             SplitResult result = service.determineSplits(ad, dictionary);
 
             Set<Integer> predicted = new HashSet<>();
-            for (Draft d : result.drafts()) predicted.add(d.mcId());
+            for (Draft d : result.drafts())
+                predicted.add(d.mcId());
 
             Set<Integer> expected = rec.targetSplitMcIds();
 
@@ -184,10 +203,12 @@ class HeuristicEvaluationTest {
             totalFN += (int) fn;
 
             // Точное совпадение набора категорий
-            if (predicted.equals(expected)) exactMatchCount++;
+            if (predicted.equals(expected))
+                exactMatchCount++;
 
             // Точность предсказания флага shouldSplit
-            if (result.shouldSplit() == rec.shouldSplit()) shouldSplitCorrect++;
+            if (result.shouldSplit() == rec.shouldSplit())
+                shouldSplitCorrect++;
         }
 
         double precision = totalTP + totalFP > 0 ? (double) totalTP / (totalTP + totalFP) : 0.0;
@@ -226,10 +247,15 @@ class HeuristicEvaluationTest {
             String line;
             boolean first = true;
             while ((line = reader.readLine()) != null) {
-                if (first) { first = false; continue; }
-                if (line.isBlank()) continue;
+                if (first) {
+                    first = false;
+                    continue;
+                }
+                if (line.isBlank())
+                    continue;
                 String[] parts = splitCsvLine(line);
-                if (parts.length < 3) continue;
+                if (parts.length < 3)
+                    continue;
                 try {
                     int mcId = Integer.parseInt(parts[0].trim());
                     String mcTitle = parts[1].trim();
@@ -237,7 +263,8 @@ class HeuristicEvaluationTest {
                     List<String> phrases = Arrays.stream(rawPhrases.split(";"))
                             .map(String::trim).filter(p -> !p.isBlank()).toList();
                     result.add(new Microcategory(mcId, mcTitle, phrases));
-                } catch (NumberFormatException ignored) {}
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
         return result;
@@ -249,9 +276,14 @@ class HeuristicEvaluationTest {
         StringBuilder cur = new StringBuilder();
         boolean inQ = false;
         for (char c : line.toCharArray()) {
-            if (c == '"') { inQ = !inQ; }
-            else if (c == ',' && !inQ) { res.add(cur.toString()); cur.setLength(0); }
-            else { cur.append(c); }
+            if (c == '"') {
+                inQ = !inQ;
+            } else if (c == ',' && !inQ) {
+                res.add(cur.toString());
+                cur.setLength(0);
+            } else {
+                cur.append(c);
+            }
         }
         res.add(cur.toString());
         return res.toArray(new String[0]);
@@ -264,11 +296,13 @@ class HeuristicEvaluationTest {
     /** Запись из датасета для оценки */
     private record EvalRecord(
             int itemId, int sourceMcId, String sourceMcTitle, String description,
-            boolean shouldSplit, Set<Integer> targetSplitMcIds, String caseType, String split) {}
+            boolean shouldSplit, Set<Integer> targetSplitMcIds, String caseType, String split) {
+    }
 
     /** Агрегированные метрики оценки */
     private record EvalStats(
             double precision, double recall, double f1,
             double exactMatch, double shouldSplitAcc,
-            int tp, int fp, int fn) {}
+            int tp, int fp, int fn) {
+    }
 }
