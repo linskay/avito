@@ -137,6 +137,7 @@ public class MicrocategoryLoaderService {
             } else {
                 current.append(c);
             }
+        }
         result.add(current.toString());
         return result.toArray(new String[0]);
     }
