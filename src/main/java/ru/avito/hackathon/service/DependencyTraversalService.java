@@ -82,6 +82,8 @@ public class DependencyTraversalService {
         Set<Integer> foundMcIds = new HashSet<>();
         // Исходную категорию объявления не включаем в черновики
         foundMcIds.add(ad.mcId());
+        
+        Set<Integer> detectedMcIdsSet = new HashSet<>();
 
         // Разбиваем на токены по: знакам препинания, переносам строк,
         // а также по разделителям «/» и «+» (формат noisy_short в датасете)
@@ -96,25 +98,24 @@ public class DependencyTraversalService {
             boolean hasMarker = INDEPENDENCE_MARKERS.stream()
                     .anyMatch(lowerToken::contains);
 
-            if (!hasMarker) continue;
-
             // Ищем совпадение с микрокатегорией из словаря
             for (Microcategory mc : dictionary) {
-                if (foundMcIds.contains(mc.mcId())) continue; // пропускаем уже найденные
-
                 boolean matches = mc.keyPhrases().stream()
                         .anyMatch(phrase -> lowerToken.contains(phrase.toLowerCase()));
 
                 if (matches) {
-                    // Очищаем токен от ведущих символов-маркеров списков
-                    String cleanToken = originalToken.trim().replaceAll("^[-•,\\s]+", "");
-                    discoveredDrafts.add(new Draft(mc.mcId(), mc.mcTitle(), cleanToken));
-                    foundMcIds.add(mc.mcId());
-                    break; // переходим к следующему токену
+                    detectedMcIdsSet.add(mc.mcId());
+                    
+                    if (hasMarker && !foundMcIds.contains(mc.mcId())) {
+                        // Очищаем токен от ведущих символов-маркеров списков
+                        String cleanToken = originalToken.trim().replaceAll("^[-•,\\s]+", "");
+                        discoveredDrafts.add(new Draft(mc.mcId(), mc.mcTitle(), cleanToken));
+                        foundMcIds.add(mc.mcId());
+                    }
                 }
             }
         }
 
-        return new SplitResult(!discoveredDrafts.isEmpty(), discoveredDrafts);
+        return new SplitResult(new ArrayList<>(detectedMcIdsSet), !discoveredDrafts.isEmpty(), discoveredDrafts);
     }
 }

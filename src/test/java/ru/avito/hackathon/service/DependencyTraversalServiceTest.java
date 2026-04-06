@@ -56,6 +56,8 @@ class DependencyTraversalServiceTest {
         Draft draft = result.drafts().get(0);
         assertEquals(101, draft.mcId(), "ID категории Сантехника");
         assertEquals("Сантехника", draft.mcTitle());
+
+        assertTrue(result.detectedMcIds().contains(101), "Сантехника должна быть найдена в тексте");
     }
 
     @Test
@@ -135,6 +137,8 @@ class DependencyTraversalServiceTest {
 
         assertFalse(result.shouldSplit(), "Без маркера 'отдельно' разделения нет");
         assertTrue(result.drafts().isEmpty());
+
+        assertTrue(result.detectedMcIds().contains(101), "Сантехника должна быть найдена в тексте, несмотря на отсутствие маркера");
     }
 
     @Test
