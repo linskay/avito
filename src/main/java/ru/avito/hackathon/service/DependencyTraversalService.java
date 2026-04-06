@@ -43,24 +43,23 @@ public class DependencyTraversalService {
             "отдельно", "дополнительно", "самостоятельно", "также", "прайс", "цены", "раздельно", "по отдельности"
     );
 
-    // Блокираторы разделения для одиночных/парных услуг
-    private static final Set<String> TURNKEY_STOPPERS = Set.of(
-            "под ключ", "комплексный", "ремонт квартир", "ремонт домов", "дизайн проект", "гарантия по договору"
+    // Только самые жесткие блокираторы, которые реально означают "не делить"
+    private static final Set<String> HARD_TURNKEY_STOPPERS = Set.of(
+            "под ключ", "комплексный", "полный ремонт", "ремонт полностью", "капитальный ремонт"
     );
 
     /**
-     * Финальный алгоритм «0.40 Breakthrough».
-     * Оптимизирован для баланса Recall (через size >= 3) и Precision (через фильтры для 1-2 услуг).
+     * Алгоритм «0.40 Sniper» v2.
+     * Максимизирует Recall через агрессивное разделение при наличии 2+ услуг.
      */
     public SplitResult determineSplits(Ad ad, List<Microcategory> dictionary) {
         String desc = ad.description();
         String lowerDesc = desc.toLowerCase();
-        int descLength = desc.length();
         
         List<Draft> discoveredDrafts = new ArrayList<>();
         Set<Integer> uniqueMcIds = new HashSet<>();
         
-        // 1. Извлекаем услуги (улучшенная токенизация для списков)
+        // 1. Извлекаем услуги (максимально широкий охват через разделители)
         String[] tokens = desc.split("[.!?;\\n]|\\s[,/|+]\\s|[,/|\\n]|\\s+и\\s+");
         
         for (String originalToken : tokens) {
@@ -69,7 +68,7 @@ public class DependencyTraversalService {
             String lowerToken = tokenTrimmed.toLowerCase();
 
             for (Microcategory mc : dictionary) {
-                // Исключаем саму категорию объявления
+                // Исключаем саму категорию объявления (ТЗ)
                 if (mc.mcId() == ad.mcId()) continue; 
 
                 boolean matches = mc.keyPhrases().stream()
@@ -83,26 +82,27 @@ public class DependencyTraversalService {
             }
         }
 
-        // 2. Флаги контекста
+        // 2. Флаг жесткого блокиратора
+        boolean isHardTurnkey = HARD_TURNKEY_STOPPERS.stream().anyMatch(lowerDesc::contains);
+        
+        // 3. Маркеры обособленности
         boolean hasIndependenceMarker = INDEPENDENCE_MARKERS.stream()
                 .anyMatch(lowerDesc::contains);
-        boolean hasTurnkeyStopper = TURNKEY_STOPPERS.stream()
-                .anyMatch(lowerDesc::contains);
 
-        // 3. ПРИНЯТИЕ РЕШЕНИЯ (Цель: F1 > 0.40)
+        // 4. ПРИНЯТИЕ РЕШЕНИЯ (Агрессивный Recall для F1 > 0.40)
         boolean shouldSplit = false;
         int size = discoveredDrafts.size();
 
         if (size > 0) {
             if (hasIndependenceMarker) {
-                // Сильный сигнал: автор явно указал на возможность отдельного заказа
+                // Явное указание автора
                 shouldSplit = true;
-            } else if (size >= 3) {
-                // Высокий Recall: большой список услуг почти всегда требует разделения
+            } else if (size >= 2) {
+                // Две и более услуг - почти всегда split в датасете
                 shouldSplit = true;
             } else {
-                // Для 1-2 услуг: только если текст короткий (частник) и нет блокираторов "под ключ"
-                shouldSplit = (descLength < 450) && !hasTurnkeyStopper;
+                // Одна услуга: делим, если это не "жесткий" ремонт под ключ
+                shouldSplit = !isHardTurnkey;
             }
         }
 
