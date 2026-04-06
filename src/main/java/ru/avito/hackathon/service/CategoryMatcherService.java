@@ -20,7 +20,6 @@ public class CategoryMatcherService {
             return found;
         }
 
-        // Разбиваем текст на предложения для более точного анализа контекста
         String[] sentences = splitIntoSentences(text);
 
         for (String sentence : sentences) {
@@ -30,8 +29,6 @@ public class CategoryMatcherService {
                 for (String phrase : mc.keyPhrases()) {
                     if (lowerCaseSentence.contains(phrase.toLowerCase())) {
                         found.add(new FoundMicrocategory(mc, phrase, sentence.trim()));
-                        // Если одна фраза из микрокатегории найдена в предложении,
-                        // этого достаточно для привязки этой категории к предложению
                         break;
                     }
                 }
@@ -41,13 +38,7 @@ public class CategoryMatcherService {
         return found;
     }
 
-    /**
-     * Упрощенное разбиение текста на предложения.
-     * Учитывает точки, восклицательные и вопросительные знаки.
-     */
     private String[] splitIntoSentences(String text) {
-        // Разделяем по точкам, восклицательным и вопросительным знакам, 
-        // за которыми следует пробел или конец строки.
-        return text.split("(?<=[.!?])\\s+|(?<=[.!?])$");
+        return text.split("(?<=[.!?])\\s+(?=[А-ЯЁA-Z])|\\n+");
     }
 }

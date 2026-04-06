@@ -26,7 +26,6 @@ public class DependencyTraversalService {
             "отдельно", "дополнительно", "самостоятельно", "также", "прайс", "цены", "раздельно", "по отдельности"
     );
 
-    // Только самые жесткие блокираторы, которые реально означают "не делить"
     private static final Set<String> HARD_TURNKEY_STOPPERS = Set.of(
             "под ключ", "комплексный", "полный ремонт", "ремонт полностью", "капитальный ремонт"
     );
@@ -44,7 +43,6 @@ public class DependencyTraversalService {
         Set<Integer> uniqueMcIds = new HashSet<>();
         Set<Integer> detectedMcIdsSet = new HashSet<>();
 
-        // 1. Извлекаем услуги (максимально широкий охват через разделители)
         String[] tokens = desc.split("[.!?;\\n]|\\s[,/|+]\\s|[,/|\\n]|\\s+и\\s+");
         
         for (String originalToken : tokens) {
@@ -59,7 +57,6 @@ public class DependencyTraversalService {
                 if (matches) {
                     detectedMcIdsSet.add(mc.mcId());
                     
-                    // Исключаем саму категорию объявления (ТЗ)
                     if (mc.mcId() != ad.mcId() && !uniqueMcIds.contains(mc.mcId())) {
                         String cleanToken = tokenTrimmed.replaceAll("^[-•,✔*\\s—]+", "");
                         discoveredDrafts.add(new Draft(mc.mcId(), mc.mcTitle(), cleanToken));
@@ -69,26 +66,20 @@ public class DependencyTraversalService {
             }
         }
 
-        // 2. Флаг жесткого блокиратора
         boolean isHardTurnkey = HARD_TURNKEY_STOPPERS.stream().anyMatch(lowerDesc::contains);
         
-        // 3. Маркеры обособленности
         boolean hasIndependenceMarker = INDEPENDENCE_MARKERS.stream()
                 .anyMatch(lowerDesc::contains);
 
-        // 4. ПРИНЯТИЕ РЕШЕНИЯ (Агрессивный Recall для F1 > 0.40)
         boolean shouldSplit = false;
         int size = discoveredDrafts.size();
 
         if (size > 0) {
             if (hasIndependenceMarker) {
-                // Явное указание автора
                 shouldSplit = true;
             } else if (size >= 2) {
-                // Две и более услуг - почти всегда split в датасете
                 shouldSplit = true;
             } else {
-                // Одна услуга: делим, если это не "жесткий" ремонт под ключ
                 shouldSplit = !isHardTurnkey;
             }
         }

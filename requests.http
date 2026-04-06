@@ -1,0 +1,38 @@
+### Test Ad Splitter API
+POST http://localhost:8080/api/v1/ads/split
+Content-Type: application/json
+
+{
+    "ad": {
+        "itemId": 5001,
+        "mcId": 201,
+        "mcTitle": "Ремонт квартир под ключ",
+        "description": "Делаем ремонт. Установка розеток и разводка труб."
+    },
+    "dictionary": [
+        {
+            "mcId": 101,
+            "mcTitle": "Сантехника",
+            "keyPhrases": [
+                "установка сантехники",
+                "разводка труб"
+            ]
+        },
+        {
+            "mcId": 102,
+            "mcTitle": "Электрика",
+            "keyPhrases": [
+                "установка розеток",
+                "монтаж люстры"
+            ]
+        }
+    ]
+}
+
+### Validation Error Test (Missing ad fields)
+POST http://localhost:8080/api/v1/ads/split
+Content-Type: application/json
+
+{
+    "dictionary": []
+}

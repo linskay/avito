@@ -55,9 +55,7 @@ public class AdSplitterFacade implements AdSplitter {
     public SplitResult splitAd(Ad ad, List<Microcategory> dictionary) {
         SplitResult result = traversalService.determineSplits(ad, dictionary);
 
-        // Сохранение в БД
         AdEntity adEntity = adMapper.toEntity(ad);
-        // Сбросим id чтобы база сгенерировала новый (если у нас нет логики upsert)
         adEntity.setId(null); 
         adEntity = adRepository.save(adEntity);
 

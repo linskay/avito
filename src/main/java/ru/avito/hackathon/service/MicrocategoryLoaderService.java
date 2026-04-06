@@ -58,7 +58,6 @@ public class MicrocategoryLoaderService {
                 boolean firstLine = true;
 
                 while ((line = reader.readLine()) != null) {
-                    // Пропускаем заголовок
                     if (firstLine) {
                         firstLine = false;
                         continue;
@@ -98,13 +97,11 @@ public class MicrocategoryLoaderService {
      */
     private Microcategory parseLine(String line) {
         try {
-            // Разбираем с учётом возможных CSV-кавычек вокруг keyPhrases-колонки
             String[] parts = splitCsvLine(line);
             if (parts.length < 3) return null;
 
             int mcId = Integer.parseInt(parts[0].trim());
             String mcTitle = parts[1].trim();
-            // Убираем внешние кавычки, если они есть
             String rawPhrases = parts[2].trim().replaceAll("^\"|\"$", "");
 
             List<String> keyPhrases = Arrays.stream(rawPhrases.split(PHRASE_SEPARATOR))
@@ -140,8 +137,7 @@ public class MicrocategoryLoaderService {
             } else {
                 current.append(c);
             }
-        }
-        result.add(current.toString()); // последний элемент
+        result.add(current.toString());
         return result.toArray(new String[0]);
     }
 }
