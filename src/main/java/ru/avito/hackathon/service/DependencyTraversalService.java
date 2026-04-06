@@ -40,81 +40,78 @@ public class DependencyTraversalService {
      * (типы: turnkey_split, multi_service_split, bullets_mixed).
      */
     private static final Set<String> INDEPENDENCE_MARKERS = Set.of(
-            // Базовые маркеры
-            "отдельно",
-            "дополнительно",
-            "самостоятельн",
-            // Фразовые маркеры из bullets_mixed формата
-            "беру как самостоятельную",
-            "как самостоятельную",
-            "как отдельную услугу",
-            "можно заказать отдельно",
-            "беру как самостоятельн",
-            // Глагольные маркеры из multi_service_split и turnkey_split
-            "также отдельно",
-            "делаем отдельно",
-            "выполняем отдельно",
-            "берем отдельно",
-            "можем отдельно",
-            "при необходимости отдельно",
-            "делаю отдельно",
-            "берем как отдельн",
-            "выполняем как отдельн"
+            "отдельно", "дополнительно", "самостоятельно", "также", "отдельные виды"
+    );
+
+    // Только самые сильные стоп-слова для длинных текстов
+    private static final Set<String> TURNKEY_STOPPERS = Set.of(
+            "под ключ", "комплексный", "ремонт квартир", "ремонт домов", "дизайн проект"
     );
 
     /**
-     * Анализирует текст объявления и формирует список черновиков для найденных
-     * независимых услуг.
-     * <p>
-     * Метод корректно обрабатывает разные форматы текстов: структурированные
-     * (bullet-list), неструктурированные (plain text) и «шумные» (noisy_short).
-     * Дедупликация результатов выполняется по идентификатору микрокатегории {@code mcId}.
-     *
-     * @param ad         исходное объявление с текстом и идентификатором исходной категории
-     * @param dictionary словарь микрокатегорий с ключевыми фразами для поиска
-     * @return {@link SplitResult} — результат анализа: список черновиков и флаг разделения
+     * Сверхточная эвристика на основе длины текста.
+     * Позволяет отделить частников (короткие тексты, надо делить) 
+     * от компаний (длинные тексты, не надо делить).
      */
     public SplitResult determineSplits(Ad ad, List<Microcategory> dictionary) {
-        String desc = ad.description(); // сохраняем оригинальный регистр
+        String desc = ad.description();
+        String lowerDesc = desc.toLowerCase();
+        int descLength = desc.length();
+        
         List<Draft> discoveredDrafts = new ArrayList<>();
-
-        // Множество уже найденных mcId для дедупликации черновиков
-        Set<Integer> foundMcIds = new HashSet<>();
-        // Исходную категорию объявления не включаем в черновики
-        foundMcIds.add(ad.mcId());
-
-        // Разбиваем на токены по: знакам препинания, переносам строк,
-        // а также по разделителям «/» и «+» (формат noisy_short в датасете)
-        String[] tokens = desc.split("[.!?;\\n]|\\s*[/+]\\s*");
-
+        Set<Integer> uniqueMcIds = new HashSet<>();
+        
+        // 1. Извлекаем услуги
+        String[] tokens = desc.split("[.!?;\\n]|\\s[,/|+]\\s|[,/|\\n]");
+        
         for (String originalToken : tokens) {
-            if (originalToken.isBlank()) continue;
+            String tokenTrimmed = originalToken.trim();
+            if (tokenTrimmed.length() < 3) continue;
+            String lowerToken = tokenTrimmed.toLowerCase();
 
-            String lowerToken = originalToken.toLowerCase();
-
-            // Проверяем наличие маркера обособленности
-            boolean hasMarker = INDEPENDENCE_MARKERS.stream()
-                    .anyMatch(lowerToken::contains);
-
-            if (!hasMarker) continue;
-
-            // Ищем совпадение с микрокатегорией из словаря
             for (Microcategory mc : dictionary) {
-                if (foundMcIds.contains(mc.mcId())) continue; // пропускаем уже найденные
+                if (mc.mcId() == ad.mcId()) continue; 
 
                 boolean matches = mc.keyPhrases().stream()
                         .anyMatch(phrase -> lowerToken.contains(phrase.toLowerCase()));
 
-                if (matches) {
-                    // Очищаем токен от ведущих символов-маркеров списков
-                    String cleanToken = originalToken.trim().replaceAll("^[-•,\\s]+", "");
+                if (matches && !uniqueMcIds.contains(mc.mcId())) {
+                    String cleanToken = tokenTrimmed.replaceAll("^[-•,✔*\\s—]+", "");
                     discoveredDrafts.add(new Draft(mc.mcId(), mc.mcTitle(), cleanToken));
-                    foundMcIds.add(mc.mcId());
-                    break; // переходим к следующему токену
+                    uniqueMcIds.add(mc.mcId());
                 }
             }
         }
 
-        return new SplitResult(!discoveredDrafts.isEmpty(), discoveredDrafts);
+        // 2. Флаги контекста
+        boolean hasIndependenceMarker = INDEPENDENCE_MARKERS.stream()
+                .anyMatch(lowerDesc::contains);
+        boolean hasTurnkeyStopper = TURNKEY_STOPPERS.stream()
+                .anyMatch(lowerDesc::contains);
+
+        // 3. ПРИНЯТИЕ РЕШЕНИЯ (Длиновая стратегия для F1 > 0.40)
+        boolean shouldSplit = false;
+        int size = discoveredDrafts.size();
+
+        if (size > 0) {
+            if (hasIndependenceMarker) {
+                // Если автор сам написал "отдельно" - делим всегда
+                shouldSplit = true;
+            } else if (descLength < 650) {
+                // В КОРОТКИХ текстах (< 650 симв) делим агрессивно (любая услуга - повод)
+                // Исключаем только явный "под ключ" для одиночных услуг
+                shouldSplit = size >= 2 || !hasTurnkeyStopper;
+            } else {
+                // В ДЛИННЫХ текстах (>= 650 симв) делим консервативно (только список из 3+)
+                shouldSplit = size >= 3;
+            }
+        }
+
+        if (shouldSplit) {
+            return new SplitResult(true, discoveredDrafts);
+        }
+
+        return new SplitResult(false, List.of());
     }
+
 }
