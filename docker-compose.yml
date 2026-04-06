@@ -26,6 +26,7 @@ services:
       - SPRING_DATASOURCE_USERNAME=avito
       - SPRING_DATASOURCE_PASSWORD=password
       - SPRING_LIQUIBASE_ENABLED=true
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
     depends_on:
       db:
         condition: service_healthy

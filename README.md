@@ -113,39 +113,55 @@ graph TD
 
 ---
 
-## 🚀 Запуск
+## 🚀 Быстрый запуск
 
-### Требования
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)  
-- Java 21+  
-- Apache Maven 3.9+
+> [!IMPORTANT]
+> Единственное требование — **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** (или Docker Engine). Ничего больше устанавливать не нужно.
 
-### Через Docker Compose (рекомендуется)
+### Одна команда — весь стек
+
 ```bash
-# Поднять только базу данных (с healthcheck)
-docker-compose up -d db
-
-# Запустить приложение (БД поднимется автоматически через spring-boot-docker-compose)
-mvn spring-boot:run
+docker-compose up --build -d
 ```
 
-### Только приложение (без Docker)
+Это запустит **PostgreSQL 16** и **Spring Boot приложение** автоматически. Приложение стартует только после того, как БД пройдёт healthcheck.
+
+### Проверка статуса
+
 ```bash
-mvn spring-boot:run
+docker ps
+# avito_db    Up ... (healthy)   0.0.0.0:5432->5432/tcp
+# avito_app   Up ...             0.0.0.0:8080->8080/tcp
 ```
-> Spring Boot автоматически поднимет Docker Compose при старте (`spring-boot-docker-compose` в зависимостях).
+
+### Остановка
+
+```bash
+docker-compose down
+```
+
+### Доступные сервисы после старта
+
+| Сервис | URL |
+| :--- | :--- |
+| **Swagger UI** | http://localhost:8080/swagger-ui.html |
+| **API endpoint** | `POST` http://localhost:8080/api/v1/ads/split |
+| **OpenAPI JSON** | http://localhost:8080/api-docs |
+| **PostgreSQL** | `localhost:5432` / DB: `avito_db` / User: `avito` / Pass: `password` |
 
 ---
 
-## 📡 API
+## 💻 Локальная разработка (без Docker)
 
-После запуска сервис доступен на `http://localhost:8080`.
+Если хотите запустить приложение вне контейнера (например, для отладки в IDE):
 
-| Метод | URL | Описание |
-| :--- | :--- | :--- |
-| `POST` | `/api/v1/ads/split` | Анализ объявления и генерация черновиков |
+```bash
+# 1. Поднять только базу данных
+docker-compose up -d db
 
-**Swagger UI:** `http://localhost:8080/swagger-ui.html`
+# 2. Запустить приложение локально (Spring Boot автоматически подключится к db)
+mvn spring-boot:run
+```
 
 ### Пример запроса
 ```json
