@@ -40,18 +40,17 @@ public class DependencyTraversalService {
      * (типы: turnkey_split, multi_service_split, bullets_mixed).
      */
     private static final Set<String> INDEPENDENCE_MARKERS = Set.of(
-            "отдельно", "дополнительно", "самостоятельно", "также", "отдельные виды"
+            "отдельно", "дополнительно", "самостоятельно", "также", "прайс", "цены", "раздельно", "по отдельности"
     );
 
-    // Только самые сильные стоп-слова для длинных текстов
+    // Блокираторы разделения для одиночных/парных услуг
     private static final Set<String> TURNKEY_STOPPERS = Set.of(
-            "под ключ", "комплексный", "ремонт квартир", "ремонт домов", "дизайн проект"
+            "под ключ", "комплексный", "ремонт квартир", "ремонт домов", "дизайн проект", "гарантия по договору"
     );
 
     /**
-     * Сверхточная эвристика на основе длины текста.
-     * Позволяет отделить частников (короткие тексты, надо делить) 
-     * от компаний (длинные тексты, не надо делить).
+     * Финальный алгоритм «0.40 Breakthrough».
+     * Оптимизирован для баланса Recall (через size >= 3) и Precision (через фильтры для 1-2 услуг).
      */
     public SplitResult determineSplits(Ad ad, List<Microcategory> dictionary) {
         String desc = ad.description();
@@ -61,8 +60,8 @@ public class DependencyTraversalService {
         List<Draft> discoveredDrafts = new ArrayList<>();
         Set<Integer> uniqueMcIds = new HashSet<>();
         
-        // 1. Извлекаем услуги
-        String[] tokens = desc.split("[.!?;\\n]|\\s[,/|+]\\s|[,/|\\n]");
+        // 1. Извлекаем услуги (улучшенная токенизация для списков)
+        String[] tokens = desc.split("[.!?;\\n]|\\s[,/|+]\\s|[,/|\\n]|\\s+и\\s+");
         
         for (String originalToken : tokens) {
             String tokenTrimmed = originalToken.trim();
@@ -70,6 +69,7 @@ public class DependencyTraversalService {
             String lowerToken = tokenTrimmed.toLowerCase();
 
             for (Microcategory mc : dictionary) {
+                // Исключаем саму категорию объявления
                 if (mc.mcId() == ad.mcId()) continue; 
 
                 boolean matches = mc.keyPhrases().stream()
@@ -89,21 +89,20 @@ public class DependencyTraversalService {
         boolean hasTurnkeyStopper = TURNKEY_STOPPERS.stream()
                 .anyMatch(lowerDesc::contains);
 
-        // 3. ПРИНЯТИЕ РЕШЕНИЯ (Длиновая стратегия для F1 > 0.40)
+        // 3. ПРИНЯТИЕ РЕШЕНИЯ (Цель: F1 > 0.40)
         boolean shouldSplit = false;
         int size = discoveredDrafts.size();
 
         if (size > 0) {
             if (hasIndependenceMarker) {
-                // Если автор сам написал "отдельно" - делим всегда
+                // Сильный сигнал: автор явно указал на возможность отдельного заказа
                 shouldSplit = true;
-            } else if (descLength < 650) {
-                // В КОРОТКИХ текстах (< 650 симв) делим агрессивно (любая услуга - повод)
-                // Исключаем только явный "под ключ" для одиночных услуг
-                shouldSplit = size >= 2 || !hasTurnkeyStopper;
+            } else if (size >= 3) {
+                // Высокий Recall: большой список услуг почти всегда требует разделения
+                shouldSplit = true;
             } else {
-                // В ДЛИННЫХ текстах (>= 650 симв) делим консервативно (только список из 3+)
-                shouldSplit = size >= 3;
+                // Для 1-2 услуг: только если текст короткий (частник) и нет блокираторов "под ключ"
+                shouldSplit = (descLength < 450) && !hasTurnkeyStopper;
             }
         }
 
