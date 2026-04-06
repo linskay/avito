@@ -1,0 +1,35 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: avito_db
+    environment:
+      POSTGRES_USER: avito
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: avito_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U avito -d avito_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: avito_app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/avito_db
+      - SPRING_DATASOURCE_USERNAME=avito
+      - SPRING_DATASOURCE_PASSWORD=password
+      - SPRING_LIQUIBASE_ENABLED=true
+      - SPRING_DOCKER_COMPOSE_ENABLED=false
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
